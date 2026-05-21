@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "scry"
+version = "0.0.0"
+description = "Eval orchestrator for HuggingFace models — the divinatory counterpart to Merlina (Schneewolf Labs)."
+readme = "README.md"
+license = { file = "LICENSE" }
+authors = [{ name = "Schneewolf Labs" }]
+requires-python = ">=3.10"
+keywords = ["evaluation", "benchmarks", "llm", "vlm", "schneewolf-labs", "lm-eval-harness", "bfcl"]
+classifiers = [
+    "Development Status :: 1 - Planning",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+# Foundation-only — runtime deps will land alongside the first real runner.
+dependencies = [
+    "pydantic>=2.0",
+]
+
+[project.optional-dependencies]
+# Reserved for when the FastAPI surface lands.
+api = ["fastapi>=0.110", "uvicorn>=0.27", "websockets>=12.0"]
+# Reserved for the lm-eval / VLMEvalKit / BFCL backends.
+harness = []
+test = ["pytest>=7.0"]
+
+[project.urls]
+Homepage = "https://github.com/Schneewolf-Labs/Scry"
+Repository = "https://github.com/Schneewolf-Labs/Scry"
+Issues = "https://github.com/Schneewolf-Labs/Scry/issues"
+
+[tool.setuptools.packages.find]
+include = ["scry*"]
+exclude = ["tests*"]
