@@ -3,15 +3,14 @@
 > *To **scry**: to gaze into a crystal, mirror, or model and see what it can truly do.*
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
-[![Status](https://img.shields.io/badge/status-foundation-orange.svg)]()
+[![Status](https://img.shields.io/badge/status-v0.1%20MVP-green.svg)]()
 
 The eval-orchestrator counterpart to [Merlina](https://github.com/Schneewolf-Labs/Merlina).
 Merlina trains the model; **Scry judges it**.
 
-> ⚠️ **Status: foundation only.** This repo is the scaffolding (README,
-> packaging, stubs) for an evaluation orchestrator we haven't built yet. No
-> evaluation actually runs today. If you want to start contributing, see
-> [The vision](#the-vision) and [Roadmap](#roadmap) below.
+> ✅ **v0.1 MVP: Single-benchmark evaluation is now working!** Run lm-eval-harness
+> benchmarks on HuggingFace models via Python API or CLI. Job queue, WebSocket
+> progress, and paired-evaluation coming in v0.2-v0.3. See [Roadmap](#roadmap).
 
 ## The vision
 
@@ -34,13 +33,51 @@ POST /eval
   base_model:   "schneewolflabs/A2"
   benchmarks:   ["bfcl", "ifeval", "mmlu-pro", "vlm_bench"]
   compare_to:   ["schneewolflabs/A1"]      # paired-eval: produce deltas
-  wandb_project: "schneewolflabs-evals"
+  wandb_project: "schneewolf-labs-evals"
   push_results_to_hub: true                 # auto-append leaderboard rows to the model card
 ```
 
 Single-GPU job queue. WebSocket progress per benchmark. End-state: a results
 JSON, a wandb run, and (optionally) a PR to the HF model repo appending a
 results table to the card.
+
+## Quickstart (v0.1)
+
+Install with lm-eval-harness support:
+
+```bash
+pip install "scry[harness]"
+```
+
+Or from source:
+
+```bash
+git clone https://github.com/Schneewolf-Labs/Scry.git
+cd Scry
+pip install -e ".[harness]"
+```
+
+Run a benchmark via CLI:
+
+```bash
+scry-eval --model meta-llama/Llama-2-7b --task arc_easy --num-fewshot 5 --limit 50
+```
+
+Or use the Python API:
+
+```python
+from scry import EvalConfig, BenchmarkSpec, LmEvalHarnessRunner
+
+cfg = EvalConfig(base_model="meta-llama/Llama-2-7b", batch_size=8)
+spec = BenchmarkSpec(backend="lm-eval-harness", task="arc_easy", num_fewshot=5)
+
+runner = LmEvalHarnessRunner()
+results = runner.run(spec, cfg)
+
+print(f"Score: {results['score']}")
+```
+
+The `/eval` API endpoint, job queue, and WebSocket progress land in v0.2.
 
 ## What makes Scry different
 
@@ -91,26 +128,33 @@ config patterns are battle-tested there and map cleanly.
 
 ## Install
 
+Stable release:
+
 ```bash
 pip install scry
 ```
 
-(once we actually ship a `0.1.0` — currently `0.0.0` is the only "version" and
-it's a foundation marker, no working code).
+With lm-eval-harness backend:
 
-From source:
+```bash
+pip install "scry[harness]"
+```
+
+From source (development):
 
 ```bash
 git clone https://github.com/Schneewolf-Labs/Scry.git
 cd Scry
-pip install -e .
+pip install -e ".[harness,test]"
 ```
+
+The CLI entrypoint `scry-eval` is installed with the package.
 
 ## Roadmap
 
-- [ ] **v0.1** — Single-benchmark MVP: `POST /eval` runs `lm-eval-harness` on
-  one HF model and one task, returns JSON results. No queue, no WebSocket, no
-  comparison.
+- [x] **v0.1** — Single-benchmark MVP: `LmEvalHarnessRunner` runs lm-eval-harness
+  on one HF model and one task, returns JSON results. CLI entrypoint `scry-eval`
+  for command-line usage. No queue, no WebSocket, no comparison.
 - [ ] **v0.2** — Job queue + WebSocket progress; multi-benchmark per request.
 - [ ] **v0.3** — Paired-evaluation (`compare_to: [...]`) producing delta
   reports.
