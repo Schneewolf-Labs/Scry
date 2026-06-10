@@ -45,8 +45,8 @@ def main():
     parser.add_argument(
         "--num-fewshot",
         type=int,
-        default=0,
-        help="Number of few-shot examples (default: 0)"
+        default=None,
+        help="Number of few-shot examples (default: the task's own default)"
     )
     parser.add_argument(
         "--limit",
@@ -88,23 +88,25 @@ def main():
     
     try:
         # Build config
-        cfg = EvalConfig(
-            base_model=args.model,
-            revision=args.revision,
-            batch_size=args.batch_size,
-            max_length=args.max_length,
-        )
-        
         spec = BenchmarkSpec(
             backend="lm-eval-harness",
             task=args.task,
             num_fewshot=args.num_fewshot,
             limit=args.limit,
         )
-        
+
+        cfg = EvalConfig(
+            base_model=args.model,
+            revision=args.revision,
+            batch_size=args.batch_size,
+            max_length=args.max_length,
+            benchmarks=[spec],
+        )
+
         # Run evaluation
         logger.info(f"Evaluating {cfg.base_model} on {spec.task}")
-        logger.info(f"Few-shot: {spec.num_fewshot}, Limit: {spec.limit}")
+        fewshot_desc = spec.num_fewshot if spec.num_fewshot is not None else "task default"
+        logger.info(f"Few-shot: {fewshot_desc}, Limit: {spec.limit}")
         
         runner = LmEvalHarnessRunner()
         results = runner.run(spec, cfg)

@@ -85,94 +85,106 @@ class LmEvalHarnessRunner(BaseRunner):
         Raises:
             ImportError: If lm-eval-harness is not installed
             ValueError: If the task is not found
+            RuntimeError: If the evaluation itself fails
         """
         # Import lm-eval-harness components (will raise ImportError if not installed)
         try:
+            from lm_eval.evaluator import simple_evaluate
             from lm_eval.tasks import TaskManager, get_task_dict
-            from lm_eval.evaluator import evaluator, simple_evaluate
-            from lm_eval.models import get_model
         except ImportError as e:
             raise ImportError(
                 "lm-eval-harness is not installed. Install with: pip install scry[harness]"
             ) from e
-        
+
         logger.info(f"Running lm-eval-harness task '{spec.task}' on model '{cfg.base_model}'")
-        
-        # Build the task list (lm-eval-harness uses comma-separated task names)
-        task_list = spec.task
-        
-        # Get task manager and resolve task names
+
+        # Validate the task name up front so an unknown task surfaces as a
+        # ValueError instead of failing deep inside the harness.
         task_manager = TaskManager()
         try:
-            task_dict = get_task_dict([task_list], task_manager)
+            get_task_dict([spec.task], task_manager)
         except Exception as e:
             raise ValueError(f"Task '{spec.task}' not found in lm-eval-harness: {e}") from e
-        
-        # Determine fewshot and limit
-        num_fewshot = spec.num_fewshot if spec.num_fewshot is not None else 0
-        limit = spec.limit if spec.limit is not None else None
-        
-        # Run evaluation using simple_evaluate (higher-level API)
+
+        # The harness takes the model *type* in `model` ("hf" = HuggingFace
+        # transformers); the checkpoint and its loading knobs go in `model_args`.
+        model_args: dict[str, Any] = {
+            "pretrained": cfg.base_model,
+            "dtype": cfg.dtype,
+            "max_length": cfg.max_length,
+        }
+        if cfg.revision is not None:
+            model_args["revision"] = cfg.revision
+
+        # num_fewshot=None lets the task's own default apply; an explicit
+        # value (including 0) overrides it.
         try:
             results = simple_evaluate(
-                model=cfg.base_model,
-                tasks=[task_list],
-                num_fewshot=num_fewshot,
-                limit=limit,
+                model="hf",
+                model_args=model_args,
+                tasks=[spec.task],
+                num_fewshot=spec.num_fewshot,
+                limit=spec.limit,
                 batch_size=cfg.batch_size,
-                output_path=None,  # We'll handle output ourselves
-                verbosity="INFO",
+                task_manager=task_manager,
             )
         except Exception as e:
             raise RuntimeError(f"Evaluation failed: {e}") from e
-        
+
         # Extract results for the task
         task_results = results["results"].get(spec.task, {})
-        
+        n_samples = results.get("n-samples", {}).get(spec.task, {})
+
         # Build the result dict
         result = {
             "task": spec.task,
             "backend": self.backend_name,
             "model": cfg.base_model,
             "revision": cfg.revision,
-            "num_fewshot": num_fewshot,
-            "limit": limit,
+            "num_fewshot": results.get("n-shot", {}).get(spec.task, spec.num_fewshot),
+            "limit": spec.limit,
             "batch_size": cfg.batch_size,
+            "n_samples": n_samples.get("effective"),
             "metrics": task_results,
             "details": {
-                "aggregation": task_results.get("aggregation"),
-                "higher_is_better": task_results.get("higher_is_better"),
+                "n_samples": n_samples,
+                "higher_is_better": results.get("higher_is_better", {}).get(spec.task),
             },
         }
-        
+
         # Extract the primary score (usually the first metric or "acc")
         primary_score = self._extract_primary_score(task_results)
         result["score"] = primary_score
-        
+
         logger.info(f"Completed evaluation: score={primary_score}")
-        
+
         return result
     
     def _extract_primary_score(self, metrics: dict) -> Optional[float]:
         """Extract the primary score from lm-eval-harness metrics.
-        
-        lm-eval-harness returns multiple metrics; we extract the most relevant one:
+
+        lm-eval-harness 0.4.x keys metrics as "<metric>,<filter>" (e.g.
+        "acc,none", "acc_stderr,none") alongside a non-numeric "alias" entry.
+        We extract the most relevant one:
         - If "acc" exists, use it (common for classification)
         - Otherwise, use the first metric that looks like a score
         """
         # Priority order for primary metrics
-        priority_metrics = ["acc", "accuracy", "f1", "bleu", "perplexity"]
-        
-        for metric in priority_metrics:
-            if metric in metrics and isinstance(metrics[metric], (int, float)):
-                return float(metrics[metric])
-        
-        # Fallback: return first numeric metric
+        priority_metrics = ["acc", "accuracy", "exact_match", "acc_norm", "f1", "bleu", "perplexity"]
+
+        # Index numeric metrics by bare metric name, dropping stderr entries.
+        # First filter wins when a metric is reported under several filters.
+        scores: dict[str, float] = {}
         for key, value in metrics.items():
-            if isinstance(value, (int, float)) and not key.startswith("stderr"):
-                return float(value)
-        
-        return None
+            if isinstance(value, (int, float)) and "stderr" not in key:
+                scores.setdefault(key.split(",", 1)[0], float(value))
+
+        for metric in priority_metrics:
+            if metric in scores:
+                return scores[metric]
+
+        # Fallback: return first numeric metric
+        return next(iter(scores.values()), None)
 
 
 class VlmEvalKitRunner(BaseRunner):
