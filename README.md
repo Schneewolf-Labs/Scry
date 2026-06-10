@@ -68,8 +68,8 @@ Or use the Python API:
 ```python
 from scry import EvalConfig, BenchmarkSpec, LmEvalHarnessRunner
 
-cfg = EvalConfig(base_model="meta-llama/Llama-2-7b", batch_size=8)
 spec = BenchmarkSpec(backend="lm-eval-harness", task="arc_easy", num_fewshot=5)
+cfg = EvalConfig(base_model="meta-llama/Llama-2-7b", batch_size=8, benchmarks=[spec])
 
 runner = LmEvalHarnessRunner()
 results = runner.run(spec, cfg)

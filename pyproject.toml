@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "scry"
-version = "0.1.0"
+version = "0.1.1"
 description = "Eval orchestrator for HuggingFace models — the divinatory counterpart to Merlina (Schneewolf Labs)."
 readme = "README.md"
 license = { file = "LICENSE" }

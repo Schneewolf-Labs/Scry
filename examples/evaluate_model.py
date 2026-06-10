@@ -16,13 +16,6 @@ logger = logging.getLogger(__name__)
 
 
 def main():
-    # Configure the evaluation
-    cfg = EvalConfig(
-        base_model="EleutherAI/pythia-70m",  # Small model for quick demo
-        batch_size=4,
-        max_length=2048,
-    )
-    
     # Specify the benchmark task
     spec = BenchmarkSpec(
         backend="lm-eval-harness",
@@ -30,24 +23,33 @@ def main():
         num_fewshot=0,    # Zero-shot evaluation
         limit=20,         # Only evaluate 20 samples (for speed)
     )
-    
+
+    # Configure the evaluation
+    cfg = EvalConfig(
+        base_model="EleutherAI/pythia-70m",  # Small model for quick demo
+        batch_size=4,
+        max_length=2048,
+        benchmarks=[spec],
+    )
+
     # Run the evaluation
     logger.info(f"Evaluating {cfg.base_model} on {spec.task}")
     logger.info(f"Configuration: {spec.num_fewshot}-shot, {spec.limit} samples")
-    
+
     runner = LmEvalHarnessRunner()
     results = runner.run(spec, cfg)
-    
+
     # Display results
     print("\n" + "="*60)
     print("EVALUATION RESULTS")
     print("="*60)
     print(f"Model: {results['model']}")
     print(f"Task: {results['task']}")
-    print(f"Primary Score: {results['score']:.4f}" if results['score'] else "Primary Score: N/A")
+    score = results['score']
+    print(f"Primary Score: {score:.4f}" if score is not None else "Primary Score: N/A")
     print(f"\nAll Metrics:")
     for key, value in results['metrics'].items():
-        if not key.endswith('_stderr') and isinstance(value, (int, float)):
+        if 'stderr' not in key and isinstance(value, (int, float)):
             print(f"  {key}: {value:.4f}" if isinstance(value, float) else f"  {key}: {value}")
     
     # Save results to JSON
