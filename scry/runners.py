@@ -10,7 +10,7 @@ v0.1: LmEvalHarnessRunner is now implemented for single-benchmark evaluation.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Optional, Sequence
 import logging
 
 from .config import BenchmarkSpec, EvalConfig
@@ -207,3 +207,20 @@ class BfclRunner(BaseRunner):
 
     def run(self, spec, cfg, progress_cb=None):
         raise NotImplementedError("Planned for Scry v0.4 — see ROADMAP")
+
+
+# ============================================================================
+# Dispatch (v0.2)
+# ============================================================================
+
+def default_runners() -> list[BaseRunner]:
+    """Every built-in runner, in dispatch order."""
+    return [LmEvalHarnessRunner(), VlmEvalKitRunner(), BfclRunner()]
+
+
+def get_runner(spec: BenchmarkSpec, runners: Sequence[BaseRunner]) -> BaseRunner:
+    """Pick the runner that owns `spec.backend`, or raise ValueError."""
+    for runner in runners:
+        if runner.can_handle(spec):
+            return runner
+    raise ValueError(f"No runner available for backend '{spec.backend}'")

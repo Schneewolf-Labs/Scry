@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "scry"
-version = "0.1.1"
+version = "0.2.0"
 description = "Eval orchestrator for HuggingFace models — the divinatory counterpart to Merlina (Schneewolf Labs)."
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -19,13 +19,12 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
-# Foundation-only — runtime deps will land alongside the first real runner.
 dependencies = [
     "pydantic>=2.0",
 ]
 
 [project.optional-dependencies]
-# Reserved for when the FastAPI surface lands.
+# FastAPI server: POST /eval, job queue, WebSocket progress
 api = ["fastapi>=0.110", "uvicorn>=0.27", "websockets>=12.0"]
 # lm-eval-harness backend for LLM evaluation
 harness = [
@@ -33,10 +32,12 @@ harness = [
     "transformers>=4.35.0",
     "accelerate>=0.24.0",
 ]
-test = ["pytest>=7.0"]
+# httpx powers fastapi.testclient; API tests skip themselves without it
+test = ["pytest>=7.0", "httpx>=0.24"]
 
 [project.scripts]
 scry-eval = "scry.cli:main"
+scry-server = "scry.server:main"
 
 [project.urls]
 Homepage = "https://github.com/Schneewolf-Labs/Scry"

@@ -3,14 +3,15 @@
 > *To **scry**: to gaze into a crystal, mirror, or model and see what it can truly do.*
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
-[![Status](https://img.shields.io/badge/status-v0.1%20MVP-green.svg)]()
+[![Status](https://img.shields.io/badge/status-v0.2-green.svg)]()
 
 The eval-orchestrator counterpart to [Merlina](https://github.com/Schneewolf-Labs/Merlina).
 Merlina trains the model; **Scry judges it**.
 
-> ✅ **v0.1 MVP: Single-benchmark evaluation is now working!** Run lm-eval-harness
-> benchmarks on HuggingFace models via Python API or CLI. Job queue, WebSocket
-> progress, and paired-evaluation coming in v0.2-v0.3. See [Roadmap](#roadmap).
+> ✅ **v0.2: Job queue + API server is now working!** `POST /eval` accepts
+> multi-benchmark requests, a single-GPU job queue drains them one at a time,
+> and progress streams over WebSocket. Paired-evaluation (lineage deltas)
+> coming in v0.3. See [Roadmap](#roadmap).
 
 ## The vision
 
@@ -41,7 +42,7 @@ Single-GPU job queue. WebSocket progress per benchmark. End-state: a results
 JSON, a wandb run, and (optionally) a PR to the HF model repo appending a
 results table to the card.
 
-## Quickstart (v0.1)
+## Quickstart
 
 Install with lm-eval-harness support:
 
@@ -77,7 +78,40 @@ results = runner.run(spec, cfg)
 print(f"Score: {results['score']}")
 ```
 
-The `/eval` API endpoint, job queue, and WebSocket progress land in v0.2.
+### API server (v0.2)
+
+Install the API extra and start the server:
+
+```bash
+pip install "scry[api,harness]"
+scry-server --host 0.0.0.0 --port 8000
+```
+
+Submit a job — multiple benchmarks per request are run back to back on the
+single-GPU queue:
+
+```bash
+curl -X POST localhost:8000/eval -H 'Content-Type: application/json' -d '{
+  "base_model": "schneewolflabs/A2",
+  "benchmarks": [
+    {"backend": "lm-eval-harness", "task": "ifeval"},
+    {"backend": "lm-eval-harness", "task": "arc_easy", "num_fewshot": 5}
+  ]
+}'
+# => 202 {"job_id": "3ea4e533851b", "status": "queued"}
+```
+
+Then track it:
+
+- `GET /jobs` — job history (newest first), `GET /jobs/{id}` — one job
+- `POST /jobs/{id}/stop` — cancel a queued job, or halt a running one after
+  the current benchmark
+- `GET /results/{id}` — per-benchmark results + score summary once finished
+- `WS /ws/jobs/{id}` — live events: `benchmark_started`, `progress`,
+  `benchmark_completed`, terminal `status`
+
+Job history persists in sqlite (`./data/eval_jobs.db` by default; override
+with `--db`), so queued jobs survive a server restart and are re-enqueued.
 
 ## What makes Scry different
 
@@ -97,7 +131,7 @@ The **paired-evaluation** mode is the headline. Solo labs care about
 "did A2 actually beat A1 at tool calling?" more than "what's A2's BFCL score
 in absolute terms?" Scry treats lineage comparisons as first-class.
 
-## Architecture (planned)
+## Architecture
 
 ```
                  ┌────────────┐
@@ -155,7 +189,9 @@ The CLI entrypoint `scry-eval` is installed with the package.
 - [x] **v0.1** — Single-benchmark MVP: `LmEvalHarnessRunner` runs lm-eval-harness
   on one HF model and one task, returns JSON results. CLI entrypoint `scry-eval`
   for command-line usage. No queue, no WebSocket, no comparison.
-- [ ] **v0.2** — Job queue + WebSocket progress; multi-benchmark per request.
+- [x] **v0.2** — Job queue + WebSocket progress; multi-benchmark per request.
+  FastAPI server (`scry-server`) with `POST /eval`, job history in sqlite,
+  stop/cancel, and `WS /ws/jobs/{id}` live progress.
 - [ ] **v0.3** — Paired-evaluation (`compare_to: [...]`) producing delta
   reports.
 - [ ] **v0.4** — VLMEvalKit + BFCL integration for the Artemis lineage.
