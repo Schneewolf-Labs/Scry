@@ -5,6 +5,37 @@ All notable changes to Scry will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-06-12
+
+### Added
+
+- **FastAPI server** (`scry.app.create_app`, `scry-server` entrypoint):
+  - `POST /eval` accepts a full `EvalConfig` — **multiple benchmarks per
+    request** — and returns `202` with a `job_id`
+  - `GET /jobs` (history, newest first), `GET /jobs/{id}`,
+    `POST /jobs/{id}/stop`, `GET /results/{id}`, `GET /health`
+  - `WS /ws/jobs/{id}` streams live events: a `snapshot` on connect, then
+    `benchmark_started` / `progress` / `benchmark_completed` and a terminal
+    `status` event
+- **Job queue** (`scry.jobs`): single worker thread so one eval owns the GPU
+  at a time; sqlite-backed history (`./data/eval_jobs.db`, `--db` to
+  override); crash recovery on restart (queued jobs re-enqueued, interrupted
+  jobs marked failed)
+- **Stop/cancel semantics**: stopping a queued job cancels it outright;
+  stopping a running job halts it after the current benchmark, keeping
+  partial results
+- **Runner dispatch**: `default_runners()` / `get_runner()` pick the backend
+  per `BenchmarkSpec`; a failing benchmark fails the job but keeps the
+  results of benchmarks that already completed
+- `hf_token` is masked in every API response and job serialization
+
+### Changed
+
+- `scry[api]` extra is now live (FastAPI + uvicorn + websockets) and installs
+  the `scry-server` console script
+- CI installs the `api` extra so the FastAPI tests run (they skip themselves
+  when FastAPI isn't installed)
+
 ## [0.1.1] - 2026-06-10
 
 ### Fixed
@@ -63,5 +94,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - No VLMEvalKit or BFCL support (planned for v0.4)
 - No W&B or HuggingFace model card integration (planned for v0.5-v0.6)
 
+[0.2.0]: https://github.com/Schneewolf-Labs/Scry/releases/tag/v0.2.0
 [0.1.1]: https://github.com/Schneewolf-Labs/Scry/releases/tag/v0.1.1
 [0.1.0]: https://github.com/Schneewolf-Labs/Scry/releases/tag/v0.1.0
